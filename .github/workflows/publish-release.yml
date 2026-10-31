@@ -1,0 +1,47 @@
+name: Publish signed PocketBook release
+on:
+  push:
+    branches: [main]
+    paths: ['release-assets/**']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: publish-readerbook
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify signed release package
+        run: |
+          node <<'NODE'
+          const fs=require('fs'),crypto=require('crypto');
+          const base='release-assets/';
+          const raw=fs.readFileSync(base+'latest.json');
+          const sig=fs.readFileSync(base+'latest.json.sig');
+          const pub=Buffer.from('302a300506032b6570032100b63b099f81c108a721fb5ad399bac10c26bedba0d6bea631551a21b834782eb7','hex');
+          const key=crypto.createPublicKey({key:pub,format:'der',type:'spki'});
+          if(!crypto.verify(null,raw,key,sig))throw Error('Invalid manifest signature');
+          const m=JSON.parse(raw),bin=fs.readFileSync(base+'litres.app');
+          if(!/^\d{1,5}\.\d{1,5}\.\d{1,5}$/.test(m.version)||m.schema!==1||m.appId!=='litres-pb617'||m.platform!=='pb617-linux-arm-eabi5')throw Error('Invalid release metadata');
+          if(m.url!=='https://github.com/AnDmVar/ReaderBook/releases/download/v'+m.version+'/litres.app')throw Error('Invalid download URL');
+          if(bin.length!==m.size||crypto.createHash('sha256').update(bin).digest('hex')!==m.sha256)throw Error('Invalid artifact hash/size');
+          if(bin.subarray(0,4).toString('hex')!=='7f454c46'||bin[4]!==1||bin[5]!==1||bin.readUInt16LE(18)!==40||(bin.readUInt32LE(36)>>>24)!==5||(bin.readUInt32LE(36)&1024))throw Error('Invalid ARM binary');
+          fs.appendFileSync(process.env.GITHUB_ENV,'RELEASE_TAG=v'+m.version+'\n');
+          console.log('Verified v'+m.version+' '+m.sha256);
+          NODE
+      - name: Publish verified assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" --json isDraft > /tmp/existing-release.json 2>/dev/null; then
+            node -e "if(!require('/tmp/existing-release.json').isDraft)throw Error('Published release already exists; bump the version')"
+          else
+            gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --draft --title "LitRes Browser $RELEASE_TAG" --notes-file release-assets/NOTES.md
+          fi
+          gh release upload "$RELEASE_TAG" release-assets/litres.app release-assets/latest.json release-assets/latest.json.sig release-assets/SHA256SUMS --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --latest
