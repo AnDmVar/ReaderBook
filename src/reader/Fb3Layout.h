@@ -42,7 +42,7 @@ class Layout {
         // Title/poem wrappers contain paragraphs: preserve each paragraph as a line block.
         const QString t=o["t"].toString();if((t=="title"||t=="poem"||t=="stanza"||t=="epigraph"||t=="cite")&&!o["c"].toArray().isEmpty()){
             if(!first_)cursor_.insertBlock();first_=false;afterImage_=false;QTextBlockFormat b;b.setTopMargin(12);b.setBottomMargin(12);b.setAlignment(t=="title"?Qt::AlignCenter:Qt::AlignLeft);cursor_.setBlockFormat(b);node(o);++index_;continue;}
-        if(!first_)cursor_.insertBlock();first_=false;afterImage_=false;QTextBlockFormat b;b.setTopMargin(0);b.setBottomMargin(8);b.setTextIndent(t=="p"?30:0);b.setAlignment(o["fl"].toString()=="center"?Qt::AlignCenter:Qt::AlignLeft);cursor_.setBlockFormat(b);node(o);++index_;
+        if(!first_)cursor_.insertBlock();first_=false;afterImage_=false;QTextBlockFormat b;b.setTopMargin(0);b.setBottomMargin(8);b.setTextIndent(t=="p"?30:0);b.setAlignment(o["fl"].toString()=="center"?Qt::AlignCenter:o["fl"].toString()=="right"?Qt::AlignRight:t=="p"?Qt::AlignJustify:Qt::AlignLeft);cursor_.setBlockFormat(b);node(o);++index_;
     }}
 public:
     QTextDocument doc;QVector<Run> runs;QVector<Line> lines;QVector<ImageSlot> images;
@@ -54,8 +54,8 @@ public:
             QTextCursor c(&doc);c.setPosition(i.position);c.setPosition(i.position+1,QTextCursor::KeepAnchor);QTextImageFormat format=c.charFormat().toImageFormat();format.setWidth(display.width());format.setHeight(display.height());c.setCharFormat(format);}
         QFont f("Noto Sans");f.setPixelSize(fontPixels);doc.setDefaultFont(f);QTextOption option=doc.defaultTextOption();option.setWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);doc.setDefaultTextOption(option);doc.setDocumentMargin(0);doc.setTextWidth(qMax(80,width));doc.documentLayout()->documentSize();lines.clear();for(auto b=doc.begin();b.isValid();b=b.next()){auto *l=b.layout();QPointF pos=l->position();for(int i=0;i<l->lineCount();++i){auto x=l->lineAt(i);Line y;y.top=pos.y()+x.y();y.bottom=y.top+x.height();y.start=b.position()+x.textStart();y.length=x.textLength();lines.append(y);}}}
     int endLine(int first,int height)const{if(lines.isEmpty())return 0;int e=qBound(0,first,lines.size()-1)+1;while(e<lines.size()&&lines[e].bottom-lines[first].top<=height)++e;return e;}
-    int next(int first,int height)const{int e=endLine(first,height);return e>=lines.size()?lines.size():qMax(first+1,e-1);}
-    int previous(int first,int height)const{int i=qMax(0,first-1);while(i>0&&lines[qMax(0,first)].bottom-lines[i-1].top<=height)--i;return i;}
+    int next(int first,int height)const{int e=endLine(first,height);return e;}
+    int previous(int first,int height)const{if(lines.isEmpty())return 0;int last=qBound(0,first-1,lines.size()-1),i=last;while(i>0&&lines[last].bottom-lines[i-1].top<=height)--i;return i;}
     QString pointer(int pos)const{for(const auto &r:runs){if(pos<r.start+r.length&&!r.refs.isEmpty()){const auto &ref=r.refs.last();return ref.xp+"/1."+QString::number(ref.offset+qBound(0,pos-r.start,r.length));}}return {};}
     int position(const QString &pointer)const{QString xp=path(pointerPath(pointer));int offset=pointerOffset(pointer);for(const auto &r:runs)for(const auto &ref:r.refs)if(ref.xp==xp&&offset>=ref.offset&&offset<ref.offset+r.length)return r.start+offset-ref.offset;return -1;}
     int lineFor(int pos)const{for(int i=0;i<lines.size();++i)if(pos<lines[i].start+qMax(1,lines[i].length))return i;return qMax(0,lines.size()-1);}

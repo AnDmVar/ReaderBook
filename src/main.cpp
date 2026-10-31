@@ -9,6 +9,9 @@
 #include <QFontDatabase>
 #include <QPainter>
 #include "EmbeddedFont.h"
+#include "LauncherAssets.h"
+#include <QIcon>
+#include <QPixmap>
 #include "EmbeddedTrust.h"
 #include <QKeyEvent>
 #include <QInputMethod>
@@ -57,6 +60,7 @@ extern "C" {
 #include "browser/SitePresentation.h"
 #include "browser/ReaderControls.h"
 #include "reader/NativeReader.h"
+#include "reader/OfflineLibrary.h"
 #include "browser/BrowserPointer.h"
 #include "browser/SystemBrowser.h"
 #include <QResizeEvent>
@@ -620,7 +624,7 @@ public:
         connect(systemBrowser,&QPushButton::clicked,[this](){if(openSystemBrowser)openSystemBrowser();});
         auto *systemHint=new QLabel("Для сравнения: масштаб и вход задаются в штатном браузере.");systemHint->setWordWrap(true);systemHint->setStyleSheet("font-size:22px;padding:8px;");systemHint->setMinimumHeight(70);vl->addWidget(systemHint);
         group("О приложении");
-        addRow(vl, "Версия", "0.6.14");
+        addRow(vl, "Версия", "0.6.15");
         auto *controls=new QPushButton;
         auto updateLabel=[controls](){QSettings p("/mnt/ext1/litres-client/preferences.ini",QSettings::IniFormat);controls->setText(p.value("reader/horizontalFocus",false).toBool()?"В книге ←/→: выбор кнопок":"В книге ←/→: без действия");};
         controls->setObjectName("readerHorizontal");controls->setFixedHeight(80);vl->addWidget(controls);updateLabel();
@@ -704,6 +708,7 @@ public:
     MainWindow()
     {
         setAutoFillBackground(true);
+        layout()->setSizeConstraint(QLayout::SetNoConstraint);setMinimumSize(0,0);
         setStyleSheet("QStackedWidget { background: white; color: black; }");
 
         home_ = new Home;
@@ -751,7 +756,7 @@ public:
 
     }
 
-    ~MainWindow()override {if(historyTransport_){delete historyTransport_;historyTransport_=nullptr;}if(reader_){delete reader_;reader_=nullptr;}if(nativeAuth_){delete nativeAuth_;nativeAuth_=nullptr;}}
+    ~MainWindow()override {if(readingOrientation_>=0)SetOrientation(readingOrientation_);if(historyTransport_){delete historyTransport_;historyTransport_=nullptr;}if(reader_){delete reader_;reader_=nullptr;}if(nativeAuth_){delete nativeAuth_;nativeAuth_=nullptr;}}
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
@@ -834,7 +839,7 @@ protected:
             if(ok){if(!key->isAutoRepeat())pendingOk_=true;return true;}
             pendingOk_=false;
             if(key->key()==Qt::Key_Menu){if(!key->isAutoRepeat())reader_->menu();return true;}
-            if(back){reader_->pause();setCurrentWidget(browserShell_);web_->setFocus();return true;}
+            if(back){reader_->pause();QTimer::singleShot(0,this,[this](){leaveReaderToLibrary();});return true;}
             if(leftPage)reader_->control("pageUp");
             else if(key->key()==Qt::Key_PageDown||hasPocketCode(key,0x19)||hasPocketCode(key,0x1d))reader_->control("pageDown");
             else if(up)reader_->control("up");else if(down)reader_->control("down");
@@ -989,13 +994,22 @@ private:
     }
     NativeReader *reader_=nullptr;
     bool bypassNativeReader_=false;
-    void openNativeReader(const QUrl &url){
+    int readingOrientation_=-1;
+    void fitPocketBookScreen(){int w=ScreenWidth(),h=ScreenHeight();if(w>=200&&h>=200&&w<=4000&&h<=4000){resize(w,h);setContentsMargins(0,0,0,qBound(0,PanelHeight(),h/4));if(reader_)reader_->update();}}
+    void restoreReadingOrientation(){if(readingOrientation_<0)return;SetOrientation(readingOrientation_);readingOrientation_=-1;QTimer::singleShot(100,this,[this](){fitPocketBookScreen();});}
+    void leaveReaderToLibrary(){restoreReadingOrientation();if(!(QueryNetwork()&NET_CONNECTED)){setCurrentWidget(home_);openOfflineBooks();}else if(web_->url().path().startsWith("/my-books/")){setCurrentWidget(browserShell_);web_->setFocus();}else openUrl(kMyBooks);}
+    void rotateReadingScreen(){int current=GetOrientation();const int clockwise[4]={1,3,0,2};int next=current>=0&&current<4?clockwise[current]:0;SetOrientation(next);QSettings pref("/mnt/ext1/litres-client/preferences.ini",QSettings::IniFormat);pref.setValue("reader/orientation",next);QTimer::singleShot(100,this,[this](){fitPocketBookScreen();});logLine(QString("reader orientation=%1").arg(next));}
+    void openNativeReader(const QUrl &url,bool offline=false){
         pendingOk_=false;holdOk_.stop();
         if(reader_){removeWidget(reader_);delete reader_;reader_=nullptr;}
-        reader_=new NativeReader(web_->page()->profile(),url,this);addWidget(reader_);
+        reader_=new NativeReader(web_->page()->profile(),url,this,offline);addWidget(reader_);
+        if(readingOrientation_<0)readingOrientation_=GetOrientation();
+        reader_->rotateScreen=[this](){rotateReadingScreen();};
+        auto networkSeen=std::make_shared<bool>(bool(QueryNetwork()&NET_CONNECTED));reader_->networkAvailable=[networkSeen](){bool online=bool(QueryNetwork()&NET_CONNECTED);if(online&&!*networkSeen)::res_init();*networkSeen=online;return online;};
         reader_->diagnostic=[](const QString &s){logLine("native reader "+s);};
-        reader_->leave=[this,url](bool webVersion){setCurrentWidget(browserShell_);web_->setFocus();if(webVersion){bypassNativeReader_=true;web_->load(url);}};
+        reader_->leave=[this,url](bool webVersion){QTimer::singleShot(0,this,[this,url,webVersion](){if(webVersion){restoreReadingOrientation();setCurrentWidget(browserShell_);web_->setFocus();bypassNativeReader_=true;web_->load(url);}else leaveReaderToLibrary();});};
         setCurrentWidget(reader_);reader_->setFocus();browserShell_->setLoading(false);
+        QSettings orientation("/mnt/ext1/litres-client/preferences.ini",QSettings::IniFormat);if(orientation.contains("reader/orientation")){SetOrientation(qBound(0,orientation.value("reader/orientation").toInt(),3));QTimer::singleShot(100,this,[this](){fitPocketBookScreen();});}
         logLine("native reader opened; text layout and page keys use Qt, session reused");
     }
     NativeAuth *nativeAuth_=nullptr;
@@ -1069,12 +1083,16 @@ private:
     }
     QPointer<ReaderTransport> historyTransport_;
     bool openingLitres_=false;
+    void openOfflineBooks(){const QString user=OfflineAccount::active("/mnt/ext1/litres-client");if(!ReaderHistory::numeric(user)){QMessageBox::information(this,"Офлайн","Сначала откройте книгу с Wi-Fi, чтобы сохранить её для чтения без интернета.");return;}OfflineLibrary books("/mnt/ext1/litres-client",user,this);if(books.exec()==QDialog::Accepted&&!books.art().isEmpty())openNativeReader(QUrl("https://www.litres.ru/static/reader/text/index.html?art="+books.art()),true);}
+    void chooseOfflineBook(){auto last=ReaderHistory::read("/mnt/ext1/litres-client",OfflineAccount::active("/mnt/ext1/litres-client"));setCurrentWidget(home_);if(!last.isEmpty()){QMessageBox box(QMessageBox::Question,"Продолжить чтение?",QString("Нет интернета. Продолжить читать «%1» с места, сохранённого на книге?").arg(last["title"].toString()),QMessageBox::NoButton,this);box.setTextFormat(Qt::PlainText);auto *yes=box.addButton("Да",QMessageBox::YesRole);box.addButton("Мои книги",QMessageBox::NoRole);box.setDefaultButton(yes);box.exec();if(box.clickedButton()==yes){openNativeReader(QUrl("https://www.litres.ru/static/reader/text/index.html?art="+last["art"].toString()),true);return;}}openOfflineBooks();}
+
     void openLitres(){
         if(openingLitres_)return;
         const bool stored=SessionPersistence::hasStoredSession("/mnt/ext1/litres-client");
         ensureWeb();
         if(!stored){beginNativeLogin(true);return;}
-        if(!ensurePocketBookNetwork()){openUrl(kMyBooks);return;}
+        if(!(QueryNetwork()&NET_CONNECTED)){chooseOfflineBook();return;}
+        if(!ensurePocketBookNetwork()){chooseOfflineBook();return;}
         openingLitres_=true;setCurrentWidget(loading_);
         web_->whenSessionReady([this](bool ready){
             if(!ready){openingLitres_=false;setCurrentWidget(home_);focusFirstHomeButton();return;}
@@ -1082,6 +1100,8 @@ private:
             transport->request(QUrl("https://api.litres.ru/foundation/api/users/me"),"GET",{},[this,transport](int status,const QString &text){
                 transport->deleteLater();auto response=QJsonDocument::fromJson(text.toUtf8()).object();auto user=response["payload"].toObject()["data"].toObject();
                 const QString uid=QString::number(qint64(user["id"].toDouble()));
+                if(status==0||status>=500){openingLitres_=false;chooseOfflineBook();return;}
+                if(status==200&&response["error"].isNull()&&ReaderHistory::numeric(uid))OfflineAccount::remember("/mnt/ext1/litres-client",uid);
                 auto last=status==200&&response["error"].isNull()?ReaderHistory::read("/mnt/ext1/litres-client",uid):QJsonObject();
                 setCurrentWidget(home_);
                 if(!last.isEmpty()){
@@ -1378,8 +1398,10 @@ int main(int argc, char **argv)
     app.setFont(uiFont);
     logLine(QString("UI font=%1 embedded=%2").arg(uiFont.family()).arg(fontId));
     QCoreApplication::setApplicationName("LitRes PocketBook");
-    QCoreApplication::setApplicationVersion("0.6.14");
-    logLine("LitRes Browser v0.6.14 illustrations and resume last book");
+    QCoreApplication::setApplicationVersion("0.6.15");
+    QPixmap appIcon;appIcon.loadFromData(pbLauncherIcon,sizeof(pbLauncherIcon),"BMP");app.setWindowIcon(QIcon(appIcon));
+    if(QFileInfo(QCoreApplication::applicationFilePath()).absolutePath()=="/mnt/ext1/applications")logLine(LauncherAssets::install("/mnt/ext1",QCoreApplication::applicationFilePath())?"launcher icon installed; Mac duplicate checked":"launcher setup incomplete; existing configuration preserved");
+    logLine("LitRes Browser v0.6.15 offline books and launcher icon");
 
     logLine("QApplication created");
 

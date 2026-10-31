@@ -12,12 +12,12 @@ static QJsonObject bookmark(int version,const QString &xp,double percent){QJsonO
 int main(int argc,char**argv){QApplication app(argc,argv);QString error;Fb3::Parser parser;
  auto a=parser.parse("[{t:'p', xp:[1,2,3], c:['Первое ',{t:'em',xp:[1,2,3,2],c:['слово']},' и хвост\\u0021',],},]",&error);assert(error.isEmpty()&&a.isArray());
  for(QString s:{"(()=>42)()","{x:process.exit()}","[undefined]","{x:NaN}","[1] trailing","{a:1,a:2}","['\\z']","{a:1; b:2}","[","{a:'unfinished}"}){parser.parse(s,&error);assert(!error.isEmpty());}
- Fb3::Layout layout;layout.load(a.toArray(),1);layout.paginate(300,30);assert(layout.doc.toPlainText()==QString::fromUtf8("Первое слово и хвост!"));
+ Fb3::Layout layout;layout.load(a.toArray(),1);layout.paginate(300,30);assert(layout.doc.begin().blockFormat().alignment()==Qt::AlignJustify);assert(layout.doc.toPlainText()==QString::fromUtf8("Первое слово и хвост!"));
  for(int i=0;i<layout.doc.toPlainText().size();++i){QString xp=layout.pointer(i);assert(!xp.isEmpty());assert(layout.position(xp)==i);}
  assert(layout.position("/1/2/3/1.9")==9); // parent and inline anchors both restore
  QJsonArray paras;for(int i=0;i<100;++i){QJsonObject p;p["t"]="p";p["xp"]=QJsonArray{1,3,i};p["c"]=QJsonArray{QString::fromUtf8("Строка без потерь и пропусков. ").repeated(12)};paras.append(p);}layout.load(paras,0);
  for(int width:{240,500,714})for(int font:{22,30,48}){layout.paginate(width,font);QSet<int> visited;int line=0,turns=0;
-  while(line<layout.lines.size()){int end=layout.endLine(line,650);assert(end>line);for(int j=line;j<end;++j)visited.insert(j);int next=layout.next(line,650);assert(next>line);if(next<layout.lines.size()){assert(next<=end);assert(layout.previous(next,650)<=line);}line=next;assert(++turns<10000);}
+  while(line<layout.lines.size()){int end=layout.endLine(line,650);assert(end>line);for(int j=line;j<end;++j){assert(!visited.contains(j));visited.insert(j);}int next=layout.next(line,650);assert(next>line);if(next<layout.lines.size()){assert(next==end);assert(layout.previous(next,650)<=line);}line=next;assert(++turns<10000);}
   assert(visited.size()==layout.lines.size());
   for(const auto &l:layout.lines){QString xp=layout.pointer(l.start);assert(layout.position(xp)==l.start);}
  }
