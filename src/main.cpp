@@ -233,7 +233,7 @@ public:
         page()->setHtml("<html><body></body></html>",QUrl("about:blank"));
     }
 
-    ~LitresWebView() override {if(sessionReady_)session_->flush();delete page();delete session_;delete profile_;}
+    ~LitresWebView() override {QObject::disconnect(this,nullptr,nullptr,nullptr);QObject::disconnect(page(),nullptr,this,nullptr);static_cast<DiagnosticWebPage *>(page())->navigation=nullptr;if(sessionReady_)session_->flush();delete page();delete session_;delete profile_;}
     bool sessionReady()const{return sessionReady_;}
     void whenSessionReady(const std::function<void(bool)> &done){if(sessionReady_||sessionFailed_)done(sessionReady_);else readyCallbacks_.append(done);}
     SessionPersistence *session()const{return session_;}
@@ -620,7 +620,7 @@ public:
         connect(systemBrowser,&QPushButton::clicked,[this](){if(openSystemBrowser)openSystemBrowser();});
         auto *systemHint=new QLabel("Для сравнения: масштаб и вход задаются в штатном браузере.");systemHint->setWordWrap(true);systemHint->setStyleSheet("font-size:22px;padding:8px;");systemHint->setMinimumHeight(70);vl->addWidget(systemHint);
         group("О приложении");
-        addRow(vl, "Версия", "0.6.13");
+        addRow(vl, "Версия", "0.6.14");
         auto *controls=new QPushButton;
         auto updateLabel=[controls](){QSettings p("/mnt/ext1/litres-client/preferences.ini",QSettings::IniFormat);controls->setText(p.value("reader/horizontalFocus",false).toBool()?"В книге ←/→: выбор кнопок":"В книге ←/→: без действия");};
         controls->setObjectName("readerHorizontal");controls->setFixedHeight(80);vl->addWidget(controls);updateLabel();
@@ -751,7 +751,7 @@ public:
 
     }
 
-    ~MainWindow()override {if(reader_){delete reader_;reader_=nullptr;}if(nativeAuth_){delete nativeAuth_;nativeAuth_=nullptr;}}
+    ~MainWindow()override {if(historyTransport_){delete historyTransport_;historyTransport_=nullptr;}if(reader_){delete reader_;reader_=nullptr;}if(nativeAuth_){delete nativeAuth_;nativeAuth_=nullptr;}}
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override
     {
@@ -1067,11 +1067,31 @@ private:
          });
         });
     }
+    QPointer<ReaderTransport> historyTransport_;
+    bool openingLitres_=false;
     void openLitres(){
+        if(openingLitres_)return;
         const bool stored=SessionPersistence::hasStoredSession("/mnt/ext1/litres-client");
         ensureWeb();
-        if(stored)openUrl(kMyBooks);
-        else beginNativeLogin(true);
+        if(!stored){beginNativeLogin(true);return;}
+        if(!ensurePocketBookNetwork()){openUrl(kMyBooks);return;}
+        openingLitres_=true;setCurrentWidget(loading_);
+        web_->whenSessionReady([this](bool ready){
+            if(!ready){openingLitres_=false;setCurrentWidget(home_);focusFirstHomeButton();return;}
+            auto *transport=new ReaderTransport(web_->page()->profile(),this);historyTransport_=transport;
+            transport->request(QUrl("https://api.litres.ru/foundation/api/users/me"),"GET",{},[this,transport](int status,const QString &text){
+                transport->deleteLater();auto response=QJsonDocument::fromJson(text.toUtf8()).object();auto user=response["payload"].toObject()["data"].toObject();
+                const QString uid=QString::number(qint64(user["id"].toDouble()));
+                auto last=status==200&&response["error"].isNull()?ReaderHistory::read("/mnt/ext1/litres-client",uid):QJsonObject();
+                setCurrentWidget(home_);
+                if(!last.isEmpty()){
+                    QMessageBox box(QMessageBox::Question,"Продолжить чтение?",QString("Продолжить читать «%1»?\n\nМесто чтения будет проверено в Литрес.").arg(last["title"].toString()),QMessageBox::NoButton,this);
+                    box.setTextFormat(Qt::PlainText);auto *yes=box.addButton("Да",QMessageBox::YesRole);box.addButton("Нет",QMessageBox::NoRole);box.setDefaultButton(yes);box.exec();openingLitres_=false;
+                    if(box.clickedButton()==yes){openNativeReader(QUrl("https://www.litres.ru/static/reader/text/index.html?art="+last["art"].toString()));return;}
+                }
+                openingLitres_=false;openUrl(kMyBooks);
+            });
+        });
     }
     void logout(){
         if(QMessageBox::question(this,"Выход из аккаунта","Выйти из аккаунта Литрес на этой книге?")!=QMessageBox::Yes)return;
@@ -1358,8 +1378,8 @@ int main(int argc, char **argv)
     app.setFont(uiFont);
     logLine(QString("UI font=%1 embedded=%2").arg(uiFont.family()).arg(fontId));
     QCoreApplication::setApplicationName("LitRes PocketBook");
-    QCoreApplication::setApplicationVersion("0.6.13");
-    logLine("LitRes Browser v0.6.13 native FB3 text reader");
+    QCoreApplication::setApplicationVersion("0.6.14");
+    logLine("LitRes Browser v0.6.14 illustrations and resume last book");
 
     logLine("QApplication created");
 
