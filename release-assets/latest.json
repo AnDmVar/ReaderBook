@@ -2,9 +2,9 @@
   "schema": 1,
   "appId": "litres-pb617",
   "platform": "pb617-linux-arm-eabi5",
-  "version": "0.6.10",
-  "url": "https://github.com/AnDmVar/ReaderBook/releases/download/v0.6.10/litres.bin",
-  "sha256": "8512b9dc92968ca016734cb9b2adeca6795b12f64c5950976e959f1dc2f67663",
-  "size": 2596920,
-  "notes": "Курсор мыши в браузере: стрелки двигают указатель, OK нажимает под ним. В настройках добавлен пробный запуск штатного браузера PocketBook для сравнения; его масштаб и авторизация пока задаются отдельно."
+  "version": "0.6.11",
+  "url": "https://github.com/AnDmVar/ReaderBook/releases/download/v0.6.11/litres.bin",
+  "sha256": "2d8362ce5ad7371ec294875051c15abf0c5bbbc47af1a8950d037e38179fcf0e",
+  "size": 2601956,
+  "notes": "Исправлено сохранение резервной копии при обновлении на FAT. Добавлена проверка записи и атомарной замены перед загрузкой и подробный журнал ошибок. Сохранены курсор, пробный штатный браузер и авторизация."
 }
