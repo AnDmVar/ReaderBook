@@ -625,7 +625,7 @@ public:
         connect(systemBrowser,&QPushButton::clicked,[this](){if(openSystemBrowser)openSystemBrowser();});
         auto *systemHint=new QLabel("Для сравнения: масштаб и вход задаются в штатном браузере.");systemHint->setWordWrap(true);systemHint->setStyleSheet("font-size:22px;padding:8px;");systemHint->setMinimumHeight(70);vl->addWidget(systemHint);
         group("О приложении");
-        addRow(vl, "Версия", "0.6.16");
+        addRow(vl, "Версия", "0.6.17");
         auto *controls=new QPushButton;
         auto updateLabel=[controls](){QSettings p("/mnt/ext1/litres-client/preferences.ini",QSettings::IniFormat);controls->setText(p.value("reader/horizontalFocus",false).toBool()?"В книге ←/→: выбор кнопок":"В книге ←/→: без действия");};
         controls->setObjectName("readerHorizontal");controls->setFixedHeight(80);vl->addWidget(controls);updateLabel();
@@ -1401,10 +1401,10 @@ int main(int argc, char **argv)
     app.setFont(uiFont);
     logLine(QString("UI font=%1 embedded=%2").arg(uiFont.family()).arg(fontId));
     QCoreApplication::setApplicationName("LitRes PocketBook");
-    QCoreApplication::setApplicationVersion("0.6.16");
+    QCoreApplication::setApplicationVersion("0.6.17");
     QPixmap appIcon;appIcon.loadFromData(pbLauncherIcon,sizeof(pbLauncherIcon),"PNG");app.setWindowIcon(QIcon(appIcon));
-    if(QFileInfo(QCoreApplication::applicationFilePath()).absolutePath()=="/mnt/ext1/applications")logLine(LauncherAssets::install("/mnt/ext1",QCoreApplication::applicationFilePath())?"launcher RGB24 icon installed with file-path objects; Mac duplicate checked":"launcher setup incomplete; existing configuration preserved");
-    logLine("LitRes Browser v0.6.16 screen geometry and library navigation fixes");
+    if(QFileInfo(QCoreApplication::applicationFilePath()).absolutePath()=="/mnt/ext1/applications")logLine(LauncherAssets::install("/mnt/ext1",QCoreApplication::applicationFilePath())?"launcher indexed icon and absolute paths installed; real app grouped, Mac sidecar hidden":"launcher setup incomplete; existing configuration preserved");
+    logLine("LitRes Browser v0.6.17 desktop launcher registration fix");
 
     logLine("QApplication created");
 
