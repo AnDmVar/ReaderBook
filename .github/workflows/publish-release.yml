@@ -2,7 +2,7 @@ name: Publish signed PocketBook release
 on:
   push:
     branches: [main]
-    paths: ['release-assets/**']
+    paths: ['release-assets/**', '.github/workflows/publish-release.yml']
   workflow_dispatch:
 permissions:
   contents: write
@@ -24,7 +24,7 @@ jobs:
           const pub=Buffer.from('302a300506032b6570032100b63b099f81c108a721fb5ad399bac10c26bedba0d6bea631551a21b834782eb7','hex');
           const key=crypto.createPublicKey({key:pub,format:'der',type:'spki'});
           if(!crypto.verify(null,raw,key,sig))throw Error('Invalid manifest signature');
-          const m=JSON.parse(raw),bin=fs.readFileSync(base+'litres.app');
+          const m=JSON.parse(raw),bin=fs.readFileSync(base+'litres.bin');
           if(!/^\d{1,5}\.\d{1,5}\.\d{1,5}$/.test(m.version)||m.schema!==1||m.appId!=='litres-pb617'||m.platform!=='pb617-linux-arm-eabi5')throw Error('Invalid release metadata');
           if(m.url!=='https://github.com/AnDmVar/ReaderBook/releases/download/v'+m.version+'/litres.bin')throw Error('Invalid download URL');
           if(bin.length!==m.size||crypto.createHash('sha256').update(bin).digest('hex')!==m.sha256)throw Error('Invalid artifact hash/size');
