@@ -26,7 +26,7 @@ jobs:
           if(!crypto.verify(null,raw,key,sig))throw Error('Invalid manifest signature');
           const m=JSON.parse(raw),bin=fs.readFileSync(base+'litres.app');
           if(!/^\d{1,5}\.\d{1,5}\.\d{1,5}$/.test(m.version)||m.schema!==1||m.appId!=='litres-pb617'||m.platform!=='pb617-linux-arm-eabi5')throw Error('Invalid release metadata');
-          if(m.url!=='https://github.com/AnDmVar/ReaderBook/releases/download/v'+m.version+'/litres.app')throw Error('Invalid download URL');
+          if(m.url!=='https://github.com/AnDmVar/ReaderBook/releases/download/v'+m.version+'/litres.bin')throw Error('Invalid download URL');
           if(bin.length!==m.size||crypto.createHash('sha256').update(bin).digest('hex')!==m.sha256)throw Error('Invalid artifact hash/size');
           if(bin.subarray(0,4).toString('hex')!=='7f454c46'||bin[4]!==1||bin[5]!==1||bin.readUInt16LE(18)!==40||(bin.readUInt32LE(36)>>>24)!==5||(bin.readUInt32LE(36)&1024))throw Error('Invalid ARM binary');
           fs.appendFileSync(process.env.GITHUB_ENV,'RELEASE_TAG=v'+m.version+'\n');
@@ -43,5 +43,5 @@ jobs:
           else
             gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --draft --title "LitRes Browser $RELEASE_TAG" --notes-file release-assets/NOTES.md
           fi
-          gh release upload "$RELEASE_TAG" release-assets/litres.app release-assets/latest.json release-assets/latest.json.sig release-assets/SHA256SUMS --clobber
+          gh release upload "$RELEASE_TAG" release-assets/litres.bin release-assets/latest.json release-assets/latest.json.sig release-assets/SHA256SUMS --clobber
           gh release edit "$RELEASE_TAG" --draft=false --latest

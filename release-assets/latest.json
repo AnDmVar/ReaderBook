@@ -3,8 +3,8 @@
   "appId": "litres-pb617",
   "platform": "pb617-linux-arm-eabi5",
   "version": "0.6.8",
-  "url": "https://github.com/AnDmVar/ReaderBook/releases/download/v0.6.8/litres.app",
-  "sha256": "489c59c0b80179d3cbe497adc3d572c1e73b0b938358fd7235d1a024b3139342",
+  "url": "https://github.com/AnDmVar/ReaderBook/releases/download/v0.6.8/litres.bin",
+  "sha256": "6f343db07a6b1b828a450f25ab7484866729e6a88477d47df9f196b2c1a4782e",
   "size": 2528604,
   "notes": "Управление открытой книгой и подписанные онлайн-обновления."
 }
