@@ -2,9 +2,9 @@
   "schema": 1,
   "appId": "litres-pb617",
   "platform": "pb617-linux-arm-eabi5",
-  "version": "0.6.8",
-  "url": "https://github.com/AnDmVar/ReaderBook/releases/download/v0.6.8/litres.bin",
-  "sha256": "6f343db07a6b1b828a450f25ab7484866729e6a88477d47df9f196b2c1a4782e",
-  "size": 2528604,
-  "notes": "Управление открытой книгой и подписанные онлайн-обновления."
+  "version": "0.6.9",
+  "url": "https://github.com/AnDmVar/ReaderBook/releases/download/v0.6.9/litres.bin",
+  "sha256": "ffc7e20f7751d189f1dd10d3f8b04490e3d3a896d14f766fa538d55a5400e7c2",
+  "size": 2574160,
+  "notes": "Исправлены OK и «Назад» в настройках. Убран запрос входа при запуске. Сессия сохраняется между запусками; добавлен явный выход из аккаунта."
 }
