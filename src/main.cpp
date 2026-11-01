@@ -38,6 +38,7 @@
 extern "C" {
 #include <inkview.h>
 }
+#include "NativeFrame.h"
 #include <QUrl>
 #include <QVBoxLayout>
 #include <QFrame>
@@ -625,7 +626,7 @@ public:
         connect(systemBrowser,&QPushButton::clicked,[this](){if(openSystemBrowser)openSystemBrowser();});
         auto *systemHint=new QLabel("Для сравнения: масштаб и вход задаются в штатном браузере.");systemHint->setWordWrap(true);systemHint->setStyleSheet("font-size:22px;padding:8px;");systemHint->setMinimumHeight(70);vl->addWidget(systemHint);
         group("О приложении");
-        addRow(vl, "Версия", "0.6.17");
+        addRow(vl, "Версия", "0.6.20");
         auto *controls=new QPushButton;
         auto updateLabel=[controls](){QSettings p("/mnt/ext1/litres-client/preferences.ini",QSettings::IniFormat);controls->setText(p.value("reader/horizontalFocus",false).toBool()?"В книге ←/→: выбор кнопок":"В книге ←/→: без действия");};
         controls->setObjectName("readerHorizontal");controls->setFixedHeight(80);vl->addWidget(controls);updateLabel();
@@ -996,7 +997,7 @@ private:
     NativeReader *reader_=nullptr;
     bool bypassNativeReader_=false;
     int readingOrientation_=-1;
-    void fitPocketBookScreen(){int w=ScreenWidth(),h=ScreenHeight();if(w<200||h<200||w>4000||h>4000)return;bool notified=ScreenGeometry::synchronize(QSize(w,h),GetOrientation());resize(w,h);setContentsMargins(0,0,0,qBound(0,PanelHeight(),h/4));QTimer::singleShot(0,this,[this,w,h,notified](){resize(w,h);update();if(reader_)reader_->update();auto *screen=QGuiApplication::primaryScreen();logLine(QString("screen sync hook=%1 sdk=%2x%3 qt=%4x%5 window=%6x%7").arg(notified).arg(w).arg(h).arg(screen?screen->geometry().width():0).arg(screen?screen->geometry().height():0).arg(width()).arg(height()));});}
+    void fitPocketBookScreen(){int w=ScreenWidth(),h=ScreenHeight();if(w<200||h<200||w>4000||h>4000)return;bool notified=ScreenGeometry::synchronize(QSize(w,h),GetOrientation());resize(w,h);setContentsMargins(0,0,0,qBound(0,PanelHeight(),h/4));QTimer::singleShot(0,this,[this,w,h,notified](){resize(w,h);update();if(reader_)reader_->synchronizeDisplay();auto *screen=QGuiApplication::primaryScreen();logLine(QString("screen sync hook=%1 sdk=%2x%3 qt=%4x%5 window=%6x%7").arg(notified).arg(w).arg(h).arg(screen?screen->geometry().width():0).arg(screen?screen->geometry().height():0).arg(width()).arg(height()));});}
     void restoreReadingOrientation(){if(readingOrientation_<0)return;SetOrientation(readingOrientation_);readingOrientation_=-1;QTimer::singleShot(100,this,[this](){fitPocketBookScreen();});}
     void leaveReaderToLibrary(){restoreReadingOrientation();openUrl(kMyBooks);}
     void rotateReadingScreen(){int current=GetOrientation();const int clockwise[4]={1,3,0,2};int next=current>=0&&current<4?clockwise[current]:0;SetOrientation(next);QSettings pref("/mnt/ext1/litres-client/preferences.ini",QSettings::IniFormat);pref.setValue("reader/orientation",next);QTimer::singleShot(100,this,[this](){fitPocketBookScreen();});logLine(QString("reader orientation=%1").arg(next));}
@@ -1006,6 +1007,8 @@ private:
         reader_=new NativeReader(web_->page()->profile(),url,this,offline);addWidget(reader_);
         if(readingOrientation_<0)readingOrientation_=GetOrientation();
         reader_->rotateScreen=[this](){rotateReadingScreen();};
+        reader_->directOutput=[](){int o=GetOrientation();return o==1||o==2;};
+        reader_->presentFrame=[this](const QImage &image,const QPoint &global){if(currentWidget()!=reader_||QApplication::activePopupWidget()||QApplication::activeModalWidget())return;int o=GetOrientation();if(o!=1&&o!=2)return;QPoint origin=global;icanvas *selected=GetCanvas();int cw=selected?selected->width:0,ch=selected?selected->height:0;QSize actualCanvas;bool shown=NativeFrame::present(image,origin,&actualCanvas);cw=actualCanvas.width();ch=actualCanvas.height();static QString last;QString stamp=QString("native single frame ok=%1 pixels=%2x%3 origin=%4,%5 canvas=%6x%7 orientation=%8").arg(shown).arg(image.width()).arg(image.height()).arg(origin.x()).arg(origin.y()).arg(cw).arg(ch).arg(o);if(stamp!=last){logLine(stamp);last=stamp;}};
         reader_->openHome=[this](){QTimer::singleShot(0,this,[this](){restoreReadingOrientation();setCurrentWidget(home_);focusFirstHomeButton();});};
         reader_->openSaved=[this](){QTimer::singleShot(0,this,[this](){restoreReadingOrientation();setCurrentWidget(home_);openOfflineBooks();});};
         auto networkSeen=std::make_shared<bool>(bool(QueryNetwork()&NET_CONNECTED));reader_->networkAvailable=[networkSeen](){bool online=bool(QueryNetwork()&NET_CONNECTED);if(online&&!*networkSeen)::res_init();*networkSeen=online;return online;};
@@ -1401,10 +1404,10 @@ int main(int argc, char **argv)
     app.setFont(uiFont);
     logLine(QString("UI font=%1 embedded=%2").arg(uiFont.family()).arg(fontId));
     QCoreApplication::setApplicationName("LitRes PocketBook");
-    QCoreApplication::setApplicationVersion("0.6.17");
+    QCoreApplication::setApplicationVersion("0.6.20");
     QPixmap appIcon;appIcon.loadFromData(pbLauncherIcon,sizeof(pbLauncherIcon),"PNG");app.setWindowIcon(QIcon(appIcon));
     if(QFileInfo(QCoreApplication::applicationFilePath()).absolutePath()=="/mnt/ext1/applications")logLine(LauncherAssets::install("/mnt/ext1",QCoreApplication::applicationFilePath())?"launcher indexed icon and absolute paths installed; real app grouped, Mac sidecar hidden":"launcher setup incomplete; existing configuration preserved");
-    logLine("LitRes Browser v0.6.17 desktop launcher registration fix");
+    logLine("LitRes Browser v0.6.20 single native landscape output");
 
     logLine("QApplication created");
 

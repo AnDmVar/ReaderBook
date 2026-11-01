@@ -32,7 +32,7 @@ inline bool install(const QString &root,const QString &application){if(QFileInfo
  auto ghost=apps["U_._litres"].toObject();ghost["path"]=root+"/applications/._litres.app";ghost["title"]="Литрес (метаданные macOS)";ghost["visible"]="0";apps["U_._litres"]=ghost;
  config["applications"]=apps;
  auto view=config["view"].toObject();auto groups=view["groups"].toArray();bool listed=false;for(const auto &g:groups)if(g.toObject()["apps"].toArray().contains("U_litres"))listed=true;
- if(!listed){int group=-1;for(int i=0;i<groups.size();++i)if(groups[i].toObject()["title"]=="@General"){group=i;break;}if(group<0){groups.append(QJsonObject{{"title","@General"},{"sort","title"},{"apps",QJsonArray{}}});group=groups.size()-1;}auto g=groups[group].toObject();auto ids=g["apps"].toArray();ids.append("U_litres");g["apps"]=ids;groups[group]=g;view["groups"]=groups;config["view"]=view;}
+ if(!listed){int group=-1;for(int i=0;i<groups.size();++i)if(groups[i].toObject()["title"]=="Пользовательские"){group=i;break;}if(group<0){groups.append(QJsonObject{{"title","Пользовательские"},{"sort","title"},{"apps",QJsonArray{}}});group=groups.size()-1;}auto g=groups[group].toObject();auto ids=g["apps"].toArray();ids.append("U_litres");g["apps"]=ids;groups[group]=g;view["groups"]=groups;config["view"]=view;}
  auto bytes=QJsonDocument(config).toJson(QJsonDocument::Indented);if(!original.isEmpty()&&!QFileInfo::exists(path+".readerbook-backup")&&!atomic(path+".readerbook-backup",original))return false;if(bytes!=original&&!atomic(path,bytes))return false;return cleaned;
 }
 }
